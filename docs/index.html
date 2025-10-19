@@ -248,7 +248,7 @@ async function render(map) {
     const svgString = serializer.serializeToString(svg);
 
     const canvas = document.createElement("canvas");
-    const scale = 2, w = 4300, h = 1350;
+    const scale = 1, w = 4300, h = 1350;
     canvas.width = w * scale;
     canvas.height = h * scale;
     const ctx = canvas.getContext("2d");
