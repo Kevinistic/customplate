@@ -44,6 +44,24 @@
     padding:10px 20px;
     font-size:16px;
     cursor:pointer;
+    
+  }
+  .footer {
+    display: flex;
+    justify-content: space-between; /* left & right alignment */
+    align-items: center;
+    width: 90vw; /* match preview width */
+    margin-top: 10px;
+  }
+
+  .footer p {
+    margin: 0;
+    font-size: 14px;
+    color: #ccc;
+  }
+
+  .footer #saveBtn {
+    margin: 0;
   }
 </style>
 </head>
@@ -61,7 +79,10 @@
 
 <svg id="preview" viewBox="0 0 4300 1350"></svg>
 
-<button id="saveBtn">Save as PNG</button>
+<div class="footer">
+  <p>The preview above is 4300x1350px in size.</p>
+  <button id="saveBtn">Save as PNG</button>
+</div>
 
 <script>
 /* ---------- Global cache ---------- */
