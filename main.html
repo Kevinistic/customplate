@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Custom Indonesian Plate</title>
+<style>
+  body {
+    background:#111;
+    color:#fff;
+    font-family:sans-serif;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:10px;
+  }
+  .inputs {
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+    gap:8px;
+  }
+  input[type="text"], input[type="number"], input[type="range"] {
+    background:#222;
+    color:#fff;
+    border:1px solid #555;
+    border-radius:4px;
+    padding:6px 8px;
+  }
+  input[type="text"], input[type="number"] { width:120px; }
+  input[type="range"] { width:150px; }
+  label { font-size:14px; text-align:center; }
+  #preview {
+    background:#222;
+    border:1px solid #555;
+    width:90vw;
+    aspect-ratio:4300/1350;
+  }
+  #saveBtn {
+    margin-top:10px;
+    background:#28a745;
+    color:white;
+    border:none;
+    border-radius:6px;
+    padding:10px 20px;
+    font-size:16px;
+    cursor:pointer;
+  }
+</style>
+</head>
+<body>
+<h2>Custom Indonesian Plate</h2>
+
+<div class="inputs">
+  <label>Field 1<br><input id="field1" maxlength="20" placeholder="A-Z"></label>
+  <label>Field 2<br><input id="field2" maxlength="20" placeholder="0-9"></label>
+  <label>Field 3<br><input id="field3" maxlength="20" placeholder="A-Z"></label>
+</div>
+
+<div class="inputs" id="spacers"></div>
+<div class="inputs" id="date-controls"></div>
+
+<svg id="preview" viewBox="0 0 4300 1350"></svg>
+
+<button id="saveBtn">Save as PNG</button>
+
+<script>
+/* ---------- Global cache ---------- */
+let cachedBG = null;
+
+/* ---------- Font Loader ---------- */
+async function loadFont() {
+  const res = await fetch("FE-Schrift.svg");
+  const txt = await res.text();
+  const doc = new DOMParser().parseFromString(txt, "image/svg+xml");
+  const paths = [...doc.querySelectorAll("path")];
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const tempSVG = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  document.body.appendChild(tempSVG);
+
+  const map = {};
+  for (let i = 0; i < chars.length; i++) {
+    const path = paths[i];
+    if (!path) continue;
+
+    const tempPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    tempPath.setAttribute("d", path.getAttribute("d"));
+    tempSVG.appendChild(tempPath);
+
+    const len = tempPath.getTotalLength();
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (let j = 0; j <= len; j++) {
+      const { x, y } = tempPath.getPointAtLength(j);
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    }
+
+    map[chars[i]] = {
+      d: path.getAttribute("d"),
+      offsetX: minX,
+      offsetY: (minY + maxY) / 2
+    };
+    tempSVG.removeChild(tempPath);
+  }
+  tempSVG.remove();
+  return map;
+}
+
+/* ---------- Helpers ---------- */
+const qs = id => document.getElementById(id);
+
+const linkRangePair = (id, callback) => {
+  const range = qs(id);
+  const num = qs(id + "num");
+  const sync = v => { range.value = num.value = v; callback(v); };
+  range.oninput = () => sync(range.value);
+  num.oninput = () => sync(num.value);
+};
+
+const loadImageAsBase64 = async url => {
+  if (cachedBG) return cachedBG; // ✅ Use cached version
+  const res = await fetch(url);
+  const blob = await res.blob();
+  const base64 = await new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.readAsDataURL(blob);
+  });
+  cachedBG = base64; // ✅ Cache it
+  return base64;
+};
+
+/* ---------- Drawing ---------- */
+function drawTextGroup(group, texts, spacers, map, startX = 0, startY = 0, charSpacing = 245, scale = 5) {
+  let cursor = startX;
+  texts.forEach((text, i) => {
+    cursor += spacers[i] || 0;
+    for (const ch of text) {
+      const entry = map[ch];
+      if (!entry) continue;
+      const { d, offsetX: ox, offsetY: oy } = entry;
+      const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      p.setAttribute("d", d);
+      p.setAttribute("fill", "black");
+      p.setAttribute("stroke", "black");
+      p.setAttribute("stroke-width", "1");
+      p.setAttribute("transform", `translate(${cursor - ox * scale},${startY - oy * scale}) scale(${scale})`);
+      group.appendChild(p);
+      cursor += charSpacing;
+    }
+  });
+}
+
+/* ---------- Rendering ---------- */
+async function render(map) {
+  const [f1, f2, f3] = ["field1", "field2", "field3"].map(id => qs(id).value.toUpperCase());
+  const [s1, s2, s3] = ["spacer1", "spacer2", "spacer3"].map(id => +qs(id).value || 0);
+  const month = qs("month").value.padStart(2, "0");
+  const year  = qs("year").value.padStart(2, "0");
+
+  const preview = qs("preview");
+  preview.innerHTML = "";
+
+  // ✅ Background (only loads once)
+  const bg = document.createElementNS("http://www.w3.org/2000/svg", "image");
+  bg.setAttribute("href", await loadImageAsBase64("kosong.png"));
+  bg.setAttribute("width", 4300);
+  bg.setAttribute("height", 1350);
+  preview.appendChild(bg);
+
+  // Main group
+  const g1 = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  g1.setAttribute("transform", "translate(170,520) scale(2.0) scale(0.91,1.05)");
+  preview.appendChild(g1);
+  drawTextGroup(g1, [f1, f2, f3], [s1, s2, s3], map);
+
+  // Date group
+  const g2 = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  g2.setAttribute("transform", "translate(1330,1085) scale(2.0) scale(0.95,1.0)");
+  preview.appendChild(g2);
+  drawTextGroup(g2, [month, year], [150, 130], map, 0, 0, 120, 2);
+}
+
+/* ---------- Initialization ---------- */
+(async () => {
+  const map = await loadFont();
+  await loadImageAsBase64("kosong.png"); // ✅ Preload once at start
+
+  // Spacer + date inputs
+  qs("spacers").innerHTML = [1,2,3].map(i => `
+    <label>Spacer ${i}<br>
+      <input id="spacer${i}" type="range" min="-750" max="750" step="1" value="0"><br>
+      <input id="spacer${i}num" type="number" min="-750" max="750" step="1" value="0">
+    </label>`).join("");
+
+  qs("date-controls").innerHTML = `
+    <label>Month (01–12)<br>
+      <input id="month" type="range" min="1" max="12" step="1" value="1"><br>
+      <input id="monthnum" type="number" min="1" max="12" step="1" value="1">
+    </label>
+    <label>Year (20–30)<br>
+      <input id="year" type="range" min="20" max="30" step="1" value="25"><br>
+      <input id="yearnum" type="number" min="20" max="30" step="1" value="25">
+    </label>`;
+
+  ["spacer1","spacer2","spacer3","month","year"].forEach(id => linkRangePair(id, () => render(map)));
+
+  // Input filters
+  qs("field1").oninput = e => { e.target.value = e.target.value.replace(/[^A-Z]/gi, "").toUpperCase(); render(map); };
+  qs("field2").oninput = e => { e.target.value = e.target.value.replace(/[^0-9]/g, ""); render(map); };
+  qs("field3").oninput = e => { e.target.value = e.target.value.replace(/[^A-Z]/gi, "").toUpperCase(); render(map); };
+
+  // Preset
+  const preset = { field1:"XX", field2:"1234", field3:"ABC", spacer1:0, spacer2:30, spacer3:5, month:8, year:27 };
+  for (const [id, val] of Object.entries(preset)) {
+    if (qs(id)) qs(id).value = val;
+    if (qs(id + "num")) qs(id + "num").value = val;
+  }
+
+  render(map);
+
+  // Save button
+  qs("saveBtn").onclick = () => {
+    const svg = qs("preview");
+    const serializer = new XMLSerializer();
+    const svgString = serializer.serializeToString(svg);
+
+    const canvas = document.createElement("canvas");
+    const scale = 2, w = 4300, h = 1350;
+    canvas.width = w * scale;
+    canvas.height = h * scale;
+    const ctx = canvas.getContext("2d");
+
+    const img = new Image();
+    const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0, w * scale, h * scale);
+      URL.revokeObjectURL(url);
+
+      const plateText = ["field1","field2","field3"]
+        .map(id => qs(id).value)
+        .join("")
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "") || "plate";
+
+      canvas.toBlob(blob => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `${plateText}.png`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }, "image/png");
+    };
+    img.src = url;
+  };
+})();
+</script>
+</body>
+</html>
