@@ -34,6 +34,9 @@
     border:1px solid #555;
     width:90vw;
     aspect-ratio:4300/1350;
+    user-select: none;
+    -webkit-user-select: none;
+    pointer-events: none;
   }
   #saveBtn {
     margin-top:10px;
@@ -65,7 +68,7 @@
   }
 </style>
 </head>
-<body>
+<body oncontextmenu="return false;">
 <h2>Custom Indonesian Plate</h2>
 
 <div class="inputs">
